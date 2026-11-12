@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.ipynb_checkpoints/
+# Large/regenerable artifacts (labels are kept: they are the expensive part)
+data/raw/*
+!data/raw/.gitkeep
+data/embeddings/
