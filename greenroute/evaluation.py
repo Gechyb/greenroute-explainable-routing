@@ -284,7 +284,8 @@ def cascade_sweep(b: Bench, conf, ks=(25, 50, 100), accs=np.round(np.arange(0.50
     return rows
 
 
-def threshold_cascade_sweep(b: Bench, conf, taus=np.round(np.arange(0.30, 1.0, 0.02), 2)):
+def threshold_cascade_sweep(b: Bench, conf, taus=np.concatenate([
+        np.round(np.arange(0.30, 0.99, 0.02), 2), [0.99, 0.995, 0.998, 0.999, 0.9995, 0.9999]])):
     """Standard, unexplained baseline: keep the answer if raw confidence >= tau."""
     rows = []
     for name, stages in STAGE_SETS.items():
