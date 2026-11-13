@@ -1,0 +1,188 @@
+{
+  "protocol": {
+    "leave_one_out": true,
+    "dev_fraction": 0.3,
+    "seed": 42,
+    "tuning_rule": "cheapest dev setting within 2% of always-medium accuracy",
+    "compute": "2 x params x (prompt+output tokens), relative to always-medium"
+  },
+  "config": {
+    "k": 10,
+    "min_correct": 10,
+    "min_similarity": 0.0
+  },
+  "test": {
+    "greenroute": {
+      "accuracy": 0.8485714285714285,
+      "compute_rel": 0.9670792425175375,
+      "latency_rel": 0.9667207473533536,
+      "share": {
+        "tiny": 0.0,
+        "small": 0.037142857142857144,
+        "medium": 0.9628571428571429
+      },
+      "n": 700
+    },
+    "always_tiny": {
+      "accuracy": 0.43714285714285717,
+      "compute_rel": 0.08481824122937907,
+      "latency_rel": 0.21262729210680176,
+      "share": {
+        "tiny": 1.0,
+        "small": 0.0,
+        "medium": 0.0
+      },
+      "n": 700
+    },
+    "always_small": {
+      "accuracy": 0.6528571428571428,
+      "compute_rel": 0.2572666676740242,
+      "latency_rel": 0.49302353836244817,
+      "share": {
+        "tiny": 0.0,
+        "small": 1.0,
+        "medium": 0.0
+      },
+      "n": 700
+    },
+    "always_medium": {
+      "accuracy": 0.8557142857142858,
+      "compute_rel": 1.0,
+      "latency_rel": 1.0,
+      "share": {
+        "tiny": 0.0,
+        "small": 0.0,
+        "medium": 1.0
+      },
+      "n": 700
+    },
+    "oracle": {
+      "accuracy": 0.9085714285714286,
+      "compute_rel": 0.3104117007090538,
+      "latency_rel": 0.46124653683764866,
+      "share": {
+        "tiny": 0.5285714285714286,
+        "small": 0.31285714285714283,
+        "medium": 0.15857142857142856
+      },
+      "n": 700
+    },
+    "blackbox": {
+      "accuracy": 0.8357142857142857,
+      "compute_rel": 0.8863700754384838,
+      "latency_rel": 0.900460410921257,
+      "share": {
+        "tiny": 0.0,
+        "small": 0.13857142857142857,
+        "medium": 0.8614285714285714
+      },
+      "n": 700
+    }
+  },
+  "oracle_gap_closed": 0.047739727481328376,
+  "failures": {
+    "categories": {
+      "correct": 594,
+      "harmful_downgrade": 5,
+      "unavoidable": 101
+    },
+    "by_reason": {
+      "evidence": {
+        "n": 26,
+        "model_accuracy": {
+          "tiny": 0.5769230769230769,
+          "small": 0.7307692307692307,
+          "medium": 0.9230769230769231
+        }
+      },
+      "mixed_evidence": {
+        "n": 674,
+        "model_accuracy": {
+          "tiny": 0.4317507418397626,
+          "small": 0.6498516320474778,
+          "medium": 0.8531157270029673
+        }
+      },
+      "unfamiliar": {
+        "n": 0,
+        "model_accuracy": {
+          "tiny": null,
+          "small": null,
+          "medium": null
+        }
+      }
+    },
+    "safeguard": {
+      "n_fallback": 674,
+      "errors_prevented": 163,
+      "errors_introduced": 26,
+      "unneeded_fallbacks": 412,
+      "accuracy_with": 0.8531157270029673,
+      "accuracy_without": 0.6498516320474778
+    },
+    "by_source": {
+      "arc_challenge": {
+        "accuracy": 0.8461538461538461,
+        "compute_rel": 0.9916719680758777,
+        "latency_rel": 1.0032521283176719,
+        "share": {
+          "tiny": 0.0,
+          "small": 0.019230769230769232,
+          "medium": 0.9807692307692307
+        },
+        "n": 104,
+        "always_largest_accuracy": 0.8653846153846154
+      },
+      "arc_easy": {
+        "accuracy": 0.98,
+        "compute_rel": 0.9696048632218845,
+        "latency_rel": 0.9863619571463755,
+        "share": {
+          "tiny": 0.0,
+          "small": 0.05,
+          "medium": 0.95
+        },
+        "n": 100,
+        "always_largest_accuracy": 0.99
+      },
+      "gsm8k": {
+        "accuracy": 0.8932038834951457,
+        "compute_rel": 0.9384393897715025,
+        "latency_rel": 0.9427664660234477,
+        "share": {
+          "tiny": 0.0,
+          "small": 0.07766990291262135,
+          "medium": 0.9223300970873787
+        },
+        "n": 206,
+        "always_largest_accuracy": 0.9029126213592233
+      },
+      "mmlu": {
+        "accuracy": 0.7724137931034483,
+        "compute_rel": 0.9905773812616437,
+        "latency_rel": 1.004343653110757,
+        "share": {
+          "tiny": 0.0,
+          "small": 0.010344827586206896,
+          "medium": 0.9896551724137931
+        },
+        "n": 290,
+        "always_largest_accuracy": 0.7724137931034483
+      }
+    }
+  },
+  "faithfulness": {
+    "greenroute": {
+      "n": 700,
+      "n_unfamiliar_skipped": 0,
+      "cited_change_rate": 1.0,
+      "uncited_change_rate": 0.0
+    },
+    "blackbox": {
+      "theta": 0.8,
+      "n": 700,
+      "cited_change_rate": 0.26857142857142857,
+      "uncited_change_rate": 0.027142857142857142
+    }
+  }
+}
