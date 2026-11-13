@@ -22,12 +22,13 @@ from pathlib import Path
 from tqdm import tqdm
 
 from greenroute.config import MODELS
-from greenroute.grading import SYSTEM, build_prompt, is_correct
+from greenroute.grading import SYSTEM, answer_confidence, build_prompt, is_correct
 from greenroute.llm import available_models, generate
 
 ROOT = Path(__file__).resolve().parent.parent
 QUESTIONS = ROOT / "data" / "questions.jsonl"
 LABELS = ROOT / "data" / "labels" / "labels.jsonl"
+CONFIDENCE = ROOT / "data" / "labels" / "confidence.jsonl"
 
 
 def load_jsonl(path):
@@ -49,8 +50,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=None, help="only the first N questions")
     ap.add_argument("--models", nargs="*", default=[m["name"] for m in MODELS])
-    ap.add_argument("--out", type=Path, default=LABELS)
+    ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--confidence", action="store_true",
+                    help="also record token log-probs and answer confidence (cascade run); "
+                         "defaults to the tiny and small models and data/labels/confidence.jsonl")
     args = ap.parse_args()
+    if args.confidence and args.models == [m["name"] for m in MODELS]:
+        args.models = [m["name"] for m in MODELS[:-1]]  # the largest model is never cascaded past
+    args.out = args.out or (CONFIDENCE if args.confidence else LABELS)
 
     questions = load_jsonl(QUESTIONS)[: args.limit]
     if not questions:
@@ -72,15 +79,19 @@ def main():
         with args.out.open("a") as f:
             bar = tqdm(todo, desc=model, unit="q")
             for i, q in enumerate(bar, 1):
-                g = generate(model, build_prompt(q["question"], q["fmt"], q["choices"]), system=SYSTEM)
+                g = generate(model, build_prompt(q["question"], q["fmt"], q["choices"]), system=SYSTEM,
+                             logprobs=args.confidence)
                 ok, pred = is_correct(g.text, q["fmt"], q["gold"])
                 n_ok += ok
-                f.write(json.dumps({
+                rec = {
                     "id": q["id"], "model": model, "correct": bool(ok), "pred": pred,
                     "gold": q["gold"], "latency_s": round(g.latency_s, 3),
                     "prompt_tokens": g.prompt_tokens, "output_tokens": g.output_tokens,
                     "response": g.text,
-                }) + "\n")
+                }
+                if args.confidence:
+                    rec.update(answer_confidence(g.token_logprobs))
+                f.write(json.dumps(rec) + "\n")
                 f.flush()
                 bar.set_postfix(acc=f"{n_ok / i:.2f}")
         print(f"{model}: {n_ok}/{len(todo)} correct in {(time.time() - t0) / 60:.1f} min")

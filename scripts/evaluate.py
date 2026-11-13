@@ -2,10 +2,19 @@
 
   .venv/bin/python -m scripts.evaluate
 
+Two GreenRoute designs are compared:
+  * similarity router  route BEFORE answering, from similar benchmark questions
+  * cascade            answer with a small model first; keep it if past questions
+                       answered with similar confidence were usually right
+plus fixed-model baselines, an oracle, a black-box router, and an unexplained
+raw-threshold cascade.
+
 Outputs
-  results/metrics.json       headline numbers, baselines, failures, faithfulness
-  results/sweep.csv          every threshold setting (accuracy vs compute, dev and test)
-  results/per_question.csv   routing decision and outcomes for every question
+  results/metrics.json            headline numbers, failures, faithfulness
+  results/sweep.csv               similarity-router settings (accuracy vs compute)
+  results/cascade_sweep.csv       cascade settings
+  results/threshold_sweep.csv     raw-threshold cascade settings
+  results/per_question.csv        decisions and outcomes for every question
 """
 
 import csv
@@ -15,78 +24,127 @@ from pathlib import Path
 import numpy as np
 
 from greenroute.config import TIERS
-from greenroute.evaluation import (DEV_FRACTION, MAX_ACC_DROP, SEED, baselines, check_matches_router,
-                                   failure_analysis, load_bench, pick_config, route_all, score, sweep)
-from greenroute.faithfulness import blackbox_test, greenroute_test
+from greenroute.evaluation import (DEV_FRACTION, MAX_ACC_DROP, SEED, STAGE_SETS, baselines,
+                                   calibration_tally, cascade_all, cascade_score, cascade_sweep,
+                                   check_cascade_matches_router, check_matches_router, failure_analysis,
+                                   load_bench, load_confidence, pick_config, route_all, score, sweep,
+                                   threshold_cascade_sweep)
+from greenroute.faithfulness import blackbox_test, cascade_test, greenroute_test
 
 OUT = Path(__file__).resolve().parent.parent / "results"
+BIG = len(TIERS) - 1
+
+
+def write_csv(path, rows):
+    with path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+
+
+def cascade_failures(b, final, mask):
+    idx = np.where(mask)[0]
+    got = b.correct[idx, final[idx]]
+    big_ok = b.correct[idx, BIG]
+    by_source = {}
+    for src in sorted(set(b.sources[idx])):
+        sel = idx[b.sources[idx] == src]
+        by_source[src] = {"n": int(len(sel)), "accuracy": float(b.correct[sel, final[sel]].mean()),
+                          "always_largest_accuracy": float(b.correct[sel, BIG].mean()),
+                          "share": {TIERS[j]: float((final[sel] == j).mean()) for j in range(len(TIERS))}}
+    return {
+        "correct": int(got.sum()),
+        "harmful_downgrade": int((~got & (final[idx] < BIG) & big_ok).sum()),
+        "unavoidable": int((~got & ~big_ok).sum()),
+        # the cascade kept a cheap answer the largest model would have gotten wrong, and it was right
+        "cheap_beats_largest": int((got & (final[idx] < BIG) & ~big_ok).sum()),
+        "by_source": by_source,
+    }
 
 
 def main():
     b = load_bench()
     print(f"Loaded {len(b.ids)} questions: {int(b.dev.sum())} dev / {int(b.test.sum())} test")
-
-    rows = sweep(b)
     base_dev = baselines(b, b.dev)
-    cfg = pick_config(rows, base_dev["always_medium"]["accuracy"])
-    k, m, s = cfg["k"], cfg["min_correct"], cfg["min_similarity"]
-    print(f"Chosen on dev: k={k}, min_correct={m}, min_similarity={s}")
-    check_matches_router(b, k, m, s)  # evaluated policy == explained policy
-
-    tier, reason = route_all(b, k, m, s)
     base = baselines(b, b.test)
-    gr = score(b, tier, b.test)
-    fails = failure_analysis(b, tier, reason, b.test)
-
+    dev_big = base_dev["always_medium"]["accuracy"]
     rng = np.random.default_rng(SEED)
-    print("Faithfulness: GreenRoute ...")
-    faith_gr = greenroute_test(b, cfg, rng)
-    print("Faithfulness: black-box baseline (fits ~3,400 small classifiers, a few minutes) ...")
+
+    # -------------------------------------------------- similarity router
+    rows = sweep(b)
+    cfg = pick_config(rows, dev_big)
+    k, m, s = cfg["k"], cfg["min_correct"], cfg["min_similarity"]
+    check_matches_router(b, k, m, s)
+    tier, reason = route_all(b, k, m, s)
+    sim_score = score(b, tier, b.test)
+    sim_fails = failure_analysis(b, tier, reason, b.test)
+    faith_sim = greenroute_test(b, cfg, rng)
+    print("Black-box baseline (fits a few thousand small classifiers) ...")
     bb = blackbox_test(b, k, rng)
 
+    # ------------------------------------------------------------ cascade
+    conf, _ = load_confidence(b.ids)
+    c_rows = cascade_sweep(b, conf)
+    c_cfg = pick_config(c_rows, dev_big)
+    ck, cm, cstages = c_cfg["k"], c_cfg["min_correct"], STAGE_SETS[c_cfg["stages"]]
+    print(f"Cascade chosen on dev: {c_cfg['stages']}, k={ck}, min_accuracy={c_cfg['min_accuracy']}")
+    check_cascade_matches_router(b, conf, ck, cstages, c_cfg["min_accuracy"])
+    final, ran = cascade_all(b, calibration_tally(conf, b.correct[:, :-1], ck), cstages, cm)
+    c_score = cascade_score(b, final, ran, b.test)
+    c_fails = cascade_failures(b, final, b.test)
+    faith_c = cascade_test(b, conf, ck, cstages, cm, rng)
+
+    t_rows = threshold_cascade_sweep(b, conf)
+    t_cfg = pick_config(t_rows, dev_big)
+    t_final, t_ran = cascade_all(b, (conf >= t_cfg["tau"]).astype(int), STAGE_SETS[t_cfg["stages"]], 1)
+    t_score = cascade_score(b, t_final, t_ran, b.test)
+
+    big_c, orc_c = base["always_medium"]["compute_rel"], base["oracle"]["compute_rel"]
     metrics = {
         "protocol": {"leave_one_out": True, "dev_fraction": DEV_FRACTION, "seed": SEED,
                      "tuning_rule": f"cheapest dev setting within {MAX_ACC_DROP:.0%} of always-medium accuracy",
-                     "compute": "2 x params x (prompt+output tokens), relative to always-medium"},
-        "config": {"k": k, "min_correct": m, "min_similarity": s},
-        "test": {"greenroute": gr, **base, "blackbox": bb["test_score"]},
-        "oracle_gap_closed": (base["always_medium"]["compute_rel"] - gr["compute_rel"])
-                             / (base["always_medium"]["compute_rel"] - base["oracle"]["compute_rel"]),
-        "failures": fails,
+                     "compute": "2 x params x (prompt+output tokens) of every model run, relative to always-medium"},
+        "config": {"similarity": {"k": k, "min_correct": m, "min_similarity": s},
+                   "cascade": {"stages": c_cfg["stages"], "k": ck, "min_accuracy": c_cfg["min_accuracy"],
+                               "min_correct": cm},
+                   "threshold_cascade": {"stages": t_cfg["stages"], "tau": t_cfg["tau"]},
+                   "blackbox": {"theta": bb["theta"]}},
+        "test": {**base, "similarity": sim_score, "blackbox": bb["test_score"],
+                 "cascade": c_score, "threshold_cascade": t_score},
+        "oracle_gap_closed": {"similarity": (big_c - sim_score["compute_rel"]) / (big_c - orc_c),
+                              "cascade": (big_c - c_score["compute_rel"]) / (big_c - orc_c)},
+        "failures": {"similarity": sim_fails, "cascade": c_fails},
         "faithfulness": {
-            "greenroute": faith_gr,
+            "similarity": faith_sim,
             "blackbox": {kk: v for kk, v in bb.items() if kk not in ("tier", "test_score")},
+            "cascade": faith_c,
         },
     }
     OUT.mkdir(exist_ok=True)
-    (OUT / "metrics.json").write_text(json.dumps(metrics, indent=2))
-    with (OUT / "sweep.csv").open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0]))
-        w.writeheader()
-        w.writerows(rows)
+    (OUT / "metrics.json").write_text(json.dumps(metrics, indent=2, default=float))
+    write_csv(OUT / "sweep.csv", rows)
+    write_csv(OUT / "cascade_sweep.csv", c_rows)
+    write_csv(OUT / "threshold_sweep.csv", t_rows)
     with (OUT / "per_question.csv").open("w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["id", "source", "split", "routed_tier", "reason", "routed_correct", "blackbox_tier",
+        w.writerow(["id", "source", "split", "similarity_tier", "similarity_reason", "blackbox_tier",
+                    "cascade_tier", "tiny_confidence", "small_confidence",
                     *[f"{t}_correct" for t in TIERS]])
         for i, qid in enumerate(b.ids):
             w.writerow([qid, b.sources[i], "dev" if b.dev[i] else "test", TIERS[tier[i]], reason[i],
-                        int(b.correct[i, tier[i]]), TIERS[bb["tier"][i]],
+                        TIERS[bb["tier"][i]], TIERS[final[i]], round(conf[i, 0], 4), round(conf[i, 1], 4),
                         *[int(x) for x in b.correct[i]]])
 
-    # ------------------------------------------------------------ summary
-    print("\n=== TEST SET ===")
-    for name in ("always_tiny", "always_small", "always_medium", "oracle", "blackbox", "greenroute"):
+    print("\n=== TEST SET (700 questions) ===")
+    for name in ("always_tiny", "always_small", "always_medium", "oracle",
+                 "similarity", "blackbox", "threshold_cascade", "cascade"):
         sc = metrics["test"][name]
-        print(f"  {name:<14} acc {sc['accuracy']:.1%}   compute {sc['compute_rel']:.1%}   "
-              f"time {sc['latency_rel']:.1%}   mix " + " ".join(f"{t} {v:.0%}" for t, v in sc["share"].items()))
-    print(f"  oracle compute-savings gap closed: {metrics['oracle_gap_closed']:.0%}")
-    print(f"  failures: {fails['categories']}")
-    print(f"  safeguard: {fails['safeguard']}")
-    for r, v in fails["by_reason"].items():
-        print(f"  reason {r:<15} n={v['n']:<4} " +
-              " ".join(f"{t} {a:.0%}" for t, a in v["model_accuracy"].items() if a is not None))
-    print(f"  faithfulness GreenRoute: {faith_gr}")
-    print(f"  faithfulness black box : {metrics['faithfulness']['blackbox']}")
+        print(f"  {name:<18} acc {sc['accuracy']:.1%}   compute {sc['compute_rel']:.1%}   "
+              f"time {sc['latency_rel']:.1%}   final " +
+              " ".join(f"{t} {v:.0%}" for t, v in sc["share"].items()))
+    print(f"  oracle gap closed: {metrics['oracle_gap_closed']}")
+    print(f"  cascade failures: { {kk: v for kk, v in c_fails.items() if kk != 'by_source'} }")
+    print(f"  faithfulness: {json.dumps(metrics['faithfulness'], default=float)}")
 
 
 if __name__ == "__main__":

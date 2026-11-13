@@ -197,3 +197,118 @@ def failure_analysis(b: Bench, tier: np.ndarray, reason: np.ndarray, mask: np.nd
 
     return {"categories": cats, "by_reason": by_reason, "safeguard": safeguard,
             "by_source": by_source}
+
+
+# ------------------------------------------------------------------ cascade
+
+CONFIDENCE = LABELS.parent / "confidence.jsonl"
+
+
+def load_confidence(ids: list[str], path: Path = CONFIDENCE):
+    """Answer confidence and correctness for the cheap tiers: two arrays [n, n_tiers - 1]."""
+    row = {qid: i for i, qid in enumerate(ids)}
+    col = {m["name"]: j for j, m in enumerate(MODELS[:-1])}
+    conf = np.full((len(ids), len(col)), np.nan)
+    corr = np.zeros((len(ids), len(col)), bool)
+    with path.open() as f:
+        for line in f:
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            i, j = row.get(r["id"]), col.get(r["model"])
+            if i is not None and j is not None:
+                conf[i, j], corr[i, j] = r["answer_prob"], r["correct"]
+    if np.isnan(conf).any():
+        raise ValueError(f"{int(np.isnan(conf).sum())} confidence values missing; is the run finished?")
+    return conf, corr
+
+
+def calibration_tally(conf: np.ndarray, correct: np.ndarray, k: int) -> np.ndarray:
+    """For every question and cheap tier: how many of the k other benchmark questions
+    with the closest confidence that tier got right (leave-one-out). Shape [n, T-1]."""
+    n, T = conf.shape
+    out = np.zeros((n, T), int)
+    for t in range(T):
+        dist = np.abs(conf[:, t][:, None] - conf[:, t][None, :])
+        np.fill_diagonal(dist, np.inf)
+        nbr = np.argsort(dist, axis=1, kind="stable")[:, :k]
+        out[:, t] = correct[nbr, t].sum(axis=1)
+    return out
+
+
+def cascade_all(b: Bench, tally: np.ndarray, stages: tuple, min_correct: int):
+    """Vectorized cascade. Returns (final tier [n], models_run mask [n, T])."""
+    n = len(b.ids)
+    big = len(TIERS) - 1
+    final = np.full(n, big)
+    ran = np.zeros((n, len(TIERS)), bool)
+    open_ = np.ones(n, bool)
+    for t in stages:
+        ran[open_, t] = True
+        acc = open_ & (tally[:, t] >= min_correct)
+        final[acc] = t
+        open_ &= ~acc
+    ran[open_, big] = True
+    return final, ran
+
+
+def cascade_score(b: Bench, final, ran, mask) -> dict:
+    idx = np.where(mask)[0]
+    big = len(TIERS) - 1
+    return {
+        "accuracy": float(b.correct[idx, final[idx]].mean()),
+        "compute_rel": float((b.flops[idx] * ran[idx]).sum() / b.flops[idx, big].sum()),
+        "latency_rel": float((b.latency[idx] * ran[idx]).sum() / b.latency[idx, big].sum()),
+        "share": {TIERS[j]: float((final[idx] == j).mean()) for j in range(len(TIERS))},
+        "n": int(len(idx)),
+    }
+
+
+STAGE_SETS = {"tiny>small>medium": (0, 1), "small>medium": (1,), "tiny>medium": (0,)}
+
+
+def cascade_sweep(b: Bench, conf, ks=(25, 50, 100), accs=np.round(np.arange(0.50, 1.001, 0.02), 2)):
+    rows = []
+    for k in ks:
+        tally = calibration_tally(conf, b.correct[:, :-1], k)
+        for name, stages in STAGE_SETS.items():
+            for a in accs:
+                m = int(np.ceil(a * k - 1e-9))
+                final, ran = cascade_all(b, tally, stages, m)
+                row = {"stages": name, "k": k, "min_accuracy": float(a), "min_correct": m}
+                for split, mask in (("dev", b.dev), ("test", b.test)):
+                    sc = cascade_score(b, final, ran, mask)
+                    row[f"{split}_accuracy"], row[f"{split}_compute_rel"] = sc["accuracy"], sc["compute_rel"]
+                rows.append(row)
+    return rows
+
+
+def threshold_cascade_sweep(b: Bench, conf, taus=np.round(np.arange(0.30, 1.0, 0.02), 2)):
+    """Standard, unexplained baseline: keep the answer if raw confidence >= tau."""
+    rows = []
+    for name, stages in STAGE_SETS.items():
+        for tau in taus:
+            tally = (conf >= tau).astype(int)
+            final, ran = cascade_all(b, tally, stages, 1)
+            row = {"stages": name, "tau": float(tau)}
+            for split, mask in (("dev", b.dev), ("test", b.test)):
+                sc = cascade_score(b, final, ran, mask)
+                row[f"{split}_accuracy"], row[f"{split}_compute_rel"] = sc["accuracy"], sc["compute_rel"]
+            rows.append(row)
+    return rows
+
+
+def check_cascade_matches_router(b: Bench, conf, k, stages, min_accuracy, n_check=200):
+    """The vectorized numbers must equal what the explained CascadeRouter decides."""
+    from .cascade import CascadeRouter
+    r = CascadeRouter(b.ids, conf, b.correct[:, :-1], stages, k, min_accuracy)
+    tally = calibration_tally(conf, b.correct[:, :-1], k)
+    final, _ = cascade_all(b, tally, stages, r.min_correct)
+    for i in np.linspace(0, len(b.ids) - 1, n_check).astype(int):
+        t_final = len(TIERS) - 1
+        for t in stages:
+            if r.judge(t, conf[i, t], exclude_id=b.ids[i]).accepted:
+                t_final = t
+                break
+        assert t_final == final[i], b.ids[i]

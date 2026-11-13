@@ -15,10 +15,15 @@ class Generation:
     prompt_tokens: int
     output_tokens: int
     latency_s: float
+    # Per output token: (token text, log-probability). Only filled when requested.
+    token_logprobs: list[tuple[str, float]] | None = None
 
 
-def generate(model: str, prompt: str, system: str | None = None, retries: int = 2) -> Generation:
+def generate(model: str, prompt: str, system: str | None = None, retries: int = 2,
+             logprobs: bool = False) -> Generation:
     payload = {"model": model, "prompt": prompt, "stream": False, "options": GEN_OPTIONS}
+    if logprobs:
+        payload["logprobs"] = True
     if system:
         payload["system"] = system
     last_err = None
@@ -34,6 +39,8 @@ def generate(model: str, prompt: str, system: str | None = None, retries: int = 
                 prompt_tokens=data.get("prompt_eval_count", 0),
                 output_tokens=data.get("eval_count", 0),
                 latency_s=time.perf_counter() - t0,
+                token_logprobs=([(t["token"], t["logprob"]) for t in data.get("logprobs") or []]
+                                if logprobs else None),
             )
         except (requests.RequestException, ValueError) as e:  # network / bad JSON
             last_err = e

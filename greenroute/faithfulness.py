@@ -130,3 +130,41 @@ def blackbox_test(b: Bench, k: int, rng, thetas=np.round(np.arange(0.40, 0.96, 0
     return {"theta": float(theta), "tier": tier, "test_score": score(b, tier, b.test),
             "n": int(len(idx)), "cited_change_rate": cited_changed / len(idx),
             "uncited_change_rate": uncited_changed / len(idx)}
+
+
+# ------------------------------------------------------------------ cascade
+
+def cascade_test(b: Bench, conf: np.ndarray, k: int, stages: tuple, min_correct: int, rng) -> dict:
+    """Same counterfactual test for the cascade. Cited evidence = the k benchmark
+    questions with the closest confidence at the stage that settled the decision."""
+    cheap = b.correct[:, :-1]
+    n, T = conf.shape
+    nbrs = []
+    for t in range(T):
+        dist = np.abs(conf[:, t][:, None] - conf[:, t][None, :])
+        np.fill_diagonal(dist, np.inf)
+        nbrs.append(np.argsort(dist, axis=1, kind="stable")[:, :k])
+
+    def decide(i, labels):
+        for t in stages:
+            if labels[nbrs[t][i], t].sum() >= min_correct:
+                return t
+        return BIG
+
+    cited_changed = uncited_changed = 0
+    idx = np.where(b.test)[0]
+    for i in idx:
+        d = decide(i, cheap)
+        # stage that settled it: the accepting stage, or the last stage tried before escalation
+        t = d if d < BIG else stages[-1]
+        val = d == BIG  # accepted -> flip its evidence to wrong; escalated -> flip to right
+        cited = nbrs[t][i]
+        lab = cheap.copy()
+        lab[cited, t] = val
+        cited_changed += decide(i, lab) != d
+        others = np.setdiff1d(np.arange(n), np.append(cited, i))
+        lab = cheap.copy()
+        lab[rng.choice(others, k, replace=False), t] = val
+        uncited_changed += decide(i, lab) != d
+    return {"n": int(len(idx)), "cited_change_rate": cited_changed / len(idx),
+            "uncited_change_rate": uncited_changed / len(idx)}
