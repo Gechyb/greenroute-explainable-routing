@@ -68,6 +68,7 @@ def main():
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     done = {(r["id"], r["model"]) for r in load_jsonl(args.out)}
+    labeled = {(r["id"], r["model"]) for r in load_jsonl(LABELS)}
 
     for model in args.models:
         todo = [q for q in questions if (q["id"], model) not in done]
@@ -90,6 +91,9 @@ def main():
                     "response": g.text,
                 }
                 if args.confidence:
+                    if (q["id"], model) not in labeled:  # one run fills both files
+                        with LABELS.open("a") as lf:
+                            lf.write(json.dumps(rec) + "\n")
                     rec.update(answer_confidence(g.token_logprobs))
                 f.write(json.dumps(rec) + "\n")
                 f.flush()

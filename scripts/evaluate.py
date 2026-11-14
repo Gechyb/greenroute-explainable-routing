@@ -67,7 +67,8 @@ def main():
     print(f"Loaded {len(b.ids)} questions: {int(b.dev.sum())} dev / {int(b.test.sum())} test")
     base_dev = baselines(b, b.dev)
     base = baselines(b, b.test)
-    dev_big = base_dev["always_medium"]["accuracy"]
+    LARGEST = f"always_{TIERS[-1]}"
+    dev_big = base_dev[LARGEST]["accuracy"]
     rng = np.random.default_rng(SEED)
 
     # -------------------------------------------------- similarity router
@@ -99,11 +100,11 @@ def main():
     t_final, t_ran = cascade_all(b, (conf >= t_cfg["tau"]).astype(int), STAGE_SETS[t_cfg["stages"]], 1)
     t_score = cascade_score(b, t_final, t_ran, b.test)
 
-    big_c, orc_c = base["always_medium"]["compute_rel"], base["oracle"]["compute_rel"]
+    big_c, orc_c = base[LARGEST]["compute_rel"], base["oracle"]["compute_rel"]
     metrics = {
         "protocol": {"leave_one_out": True, "dev_fraction": DEV_FRACTION, "seed": SEED,
-                     "tuning_rule": f"cheapest dev setting within {MAX_ACC_DROP:.0%} of always-medium accuracy",
-                     "compute": "2 x params x (prompt+output tokens) of every model run, relative to always-medium"},
+                     "tuning_rule": f"cheapest dev setting within {MAX_ACC_DROP:.0%} of always-largest accuracy",
+                     "compute": "2 x params x (prompt+output tokens) of every model run, relative to always-largest"},
         "config": {"similarity": {"k": k, "min_correct": m, "min_similarity": s},
                    "cascade": {"stages": c_cfg["stages"], "k": ck, "min_accuracy": c_cfg["min_accuracy"],
                                "min_correct": cm},
@@ -128,15 +129,15 @@ def main():
     with (OUT / "per_question.csv").open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["id", "source", "split", "similarity_tier", "similarity_reason", "blackbox_tier",
-                    "cascade_tier", "tiny_confidence", "small_confidence",
+                    "cascade_tier", *[f"{t}_confidence" for t in TIERS[:-1]],
                     *[f"{t}_correct" for t in TIERS]])
         for i, qid in enumerate(b.ids):
             w.writerow([qid, b.sources[i], "dev" if b.dev[i] else "test", TIERS[tier[i]], reason[i],
-                        TIERS[bb["tier"][i]], TIERS[final[i]], round(conf[i, 0], 4), round(conf[i, 1], 4),
+                        TIERS[bb["tier"][i]], TIERS[final[i]], *[round(c, 4) for c in conf[i]],
                         *[int(x) for x in b.correct[i]]])
 
     print("\n=== TEST SET (700 questions) ===")
-    for name in ("always_tiny", "always_small", "always_medium", "oracle",
+    for name in (*[f"always_{t}" for t in TIERS], "oracle",
                  "similarity", "blackbox", "threshold_cascade", "cascade"):
         sc = metrics["test"][name]
         print(f"  {name:<18} acc {sc['accuracy']:.1%}   compute {sc['compute_rel']:.1%}   "
