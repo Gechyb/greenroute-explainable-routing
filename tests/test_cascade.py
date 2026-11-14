@@ -39,7 +39,7 @@ def test_faithfulness_flipping_cited_evidence_flips_decision():
 
 def test_explanation_cites_counts_and_outcome():
     r = make_router()
-    d = CascadeDecision(tier="medium", model="qwen2.5:7b", stages=[r.judge(0, 0.1)])
+    d = CascadeDecision(tier="large", model="qwen2.5:7b", stages=[r.judge(0, 0.1)])
     text = explain(d)
     assert "escalated" in text and "/5" in text and "safest option" in text
 

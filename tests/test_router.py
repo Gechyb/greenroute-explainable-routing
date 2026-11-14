@@ -2,16 +2,16 @@
 
 import numpy as np
 
+from greenroute.config import LARGEST_TIER, TIERS
 from greenroute.router import KNNRouter, Neighbor, decide
 
 K, MIN_OK, MIN_SIM = 5, 4, 0.30
 
 
-def nbrs(tiny, small, medium=None, sim=0.8):
-    """Build K neighbours from per-tier counts of correct answers."""
-    medium = K if medium is None else medium
-    return [Neighbor(f"q{i}", "q", sim, {"tiny": i < tiny, "small": i < small, "medium": i < medium})
-            for i in range(K)]
+def nbrs(tiny, small, medium=0, sim=0.8):
+    """Build K neighbours from per-tier counts of correct answers (largest always right)."""
+    counts = {"tiny": tiny, "small": small, "medium": medium, LARGEST_TIER: K}
+    return [Neighbor(f"q{i}", "q", sim, {t: i < counts[t] for t in TIERS}) for i in range(K)]
 
 
 def test_picks_smallest_tier_that_clears_bar():
@@ -22,12 +22,12 @@ def test_picks_smallest_tier_that_clears_bar():
 
 def test_mixed_evidence_falls_back_to_largest():
     d = decide(nbrs(tiny=2, small=3), MIN_OK, MIN_SIM)
-    assert (d.tier, d.reason) == ("medium", "mixed_evidence")
+    assert (d.tier, d.reason) == (LARGEST_TIER, "mixed_evidence")
 
 
 def test_unfamiliar_question_falls_back_even_if_tiny_looks_good():
     d = decide(nbrs(tiny=5, small=5, sim=0.10), MIN_OK, MIN_SIM)
-    assert (d.tier, d.reason) == ("medium", "unfamiliar")
+    assert (d.tier, d.reason) == (LARGEST_TIER, "unfamiliar")
 
 
 def test_missing_labels_never_justify_a_cheap_tier():
@@ -54,7 +54,7 @@ def test_faithfulness_flipping_evidence_flips_decision():
 
 def test_knn_router_excludes_query_itself():
     emb = np.eye(6, dtype=np.float32)
-    outcomes = np.ones((6, 3))
+    outcomes = np.ones((6, len(TIERS)))
     r = KNNRouter([f"q{i}" for i in range(6)], ["t"] * 6, emb, outcomes, k=3)
     ids = [n.id for n in r.neighbors(emb[0], exclude_ids={"q0"})]
     assert "q0" not in ids and len(ids) == 3

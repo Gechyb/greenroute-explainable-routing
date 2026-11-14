@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from sklearn.metrics import roc_auc_score  # noqa: E402
 
-from greenroute.config import TIERS  # noqa: E402
+from greenroute.config import MODELS, TIERS  # noqa: E402
 from greenroute.evaluation import calibration_tally, load_bench, load_confidence  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -26,7 +26,11 @@ RES, FIG = ROOT / "results", ROOT / "figures"
 # Reference palette (dataviz skill, light mode): categorical slots 1-3 validate all-pairs.
 SURFACE, INK, INK2, MUTED, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#8a8984", "#e6e5e0"
 BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
-TIER_RAMP = {"tiny": "#86b6ef", "small": "#2a78d6", "medium": "#104281"}  # ordinal blue
+# Ordinal blue ramp (steps 250 -> 700), one step per model size, smallest = lightest.
+_RAMP = ["#86b6ef", "#3987e5", "#1c5cab", "#0d366b"]
+TIER_RAMP = dict(zip(TIERS, _RAMP[-len(TIERS):] if len(TIERS) < 4 else _RAMP))
+LARGEST = f"always_{TIERS[-1]}"
+SIZE = {m["tier"]: f"{m['params_b']:g}B" for m in MODELS}
 
 plt.rcParams.update({
     "figure.facecolor": SURFACE, "axes.facecolor": SURFACE, "savefig.facecolor": SURFACE,
@@ -69,9 +73,7 @@ def fig_tradeoff(m):
     fixed = [t[f"always_{x}"] for x in TIERS]
     ax.plot([f["compute_rel"] * 100 for f in fixed], [f["accuracy"] * 100 for f in fixed],
             ls=(0, (4, 3)), lw=1.5, color=MUTED, zorder=1)
-    ax.text(55, (t["always_small"]["accuracy"] + 0.62 * (t["always_medium"]["accuracy"]
-            - t["always_small"]["accuracy"])) * 100 - 3.2, "random mix of fixed models",
-            color=MUTED, fontsize=9, rotation=13)
+    ax.text(31, 55, "dashed: random mix\nof fixed models", color=MUTED, fontsize=9)
 
     for name, color, label in (("cascade_sweep.csv", BLUE, "GreenRoute cascade (explained)"),
                                ("threshold_sweep.csv", AQUA, "Raw-confidence cascade (no explanation)"),
@@ -83,8 +85,10 @@ def fig_tradeoff(m):
     for tier, f in zip(TIERS, fixed):
         ax.scatter(f["compute_rel"] * 100, f["accuracy"] * 100, s=60, color=INK2, zorder=4,
                    edgecolor=SURFACE, linewidth=2)
-        ax.annotate(f"always {tier}", (f["compute_rel"] * 100, f["accuracy"] * 100),
-                    xytext=(6, -14), textcoords="offset points", fontsize=9, color=INK2)
+        off = (6, -14) if tier == TIERS[0] else (-8, 8)
+        ax.annotate(f"always {tier}", (f["compute_rel"] * 100, f["accuracy"] * 100), xytext=off,
+                    textcoords="offset points", fontsize=9, color=INK2,
+                    ha="left" if tier == TIERS[0] else "right")
     o = t["oracle"]
     ax.scatter(o["compute_rel"] * 100, o["accuracy"] * 100, marker="*", s=180, color=INK, zorder=4,
                edgecolor=SURFACE, linewidth=1.5)
@@ -99,10 +103,11 @@ def fig_tradeoff(m):
                 textcoords="offset points", fontsize=9, color=INK,
                 arrowprops={"arrowstyle": "-", "color": MUTED, "lw": 0.8})
 
-    ax.set_xlabel("Compute used (% of always using the 7B model)")
+    ax.set_xlabel(f"Compute used (% of always using the {SIZE[TIERS[-1]]} model)")
     ax.set_ylabel("Accuracy on test questions (%)")
     ax.set_xlim(0, 105)
-    ax.set_title("Same accuracy as the 7B model for a fraction of the compute")
+    ax.set_title(f"The cascade saves {1 - c['compute_rel']:.0%} of compute for "
+                 f"{(t[LARGEST]['accuracy'] - c['accuracy']) * 100:.1f} points of accuracy")
     ax.legend(loc="lower right", fontsize=9)
     save(fig, "fig1_tradeoff")
 
@@ -129,7 +134,9 @@ def fig_signal():
         for yi, v in zip(y, vals):
             ax.text(v + 0.006, yi + off, f"{v:.2f}", va="center", fontsize=10, color=INK)
     ax.axvline(0.5, color=INK2, lw=1)
-    ax.text(0.502, len(rows) - 0.45, "coin flip = 0.50", color=INK2, fontsize=9)
+    ax.text(0.505, -0.62, "coin flip = 0.50", color=INK2, fontsize=9)
+    ax.set_ylim(-0.75, len(rows) - 0.4)
+    ax.set_axisbelow(True)
     ax.set_yticks(y, [f"{r[0]} model" for r in rows])
     ax.set_xlim(0.45, 1.0)
     ax.set_xlabel("How well the evidence predicts a correct answer (AUC)")
@@ -161,15 +168,16 @@ def fig_where(m):
                             color=INK if tier == "tiny" else "#ffffff")
             left += w
         d = (src[s]["accuracy"] - src[s]["always_largest_accuracy"]) * 100
-        ax.text(102, yi, f"{src[s]['accuracy']:.0%} acc. ({d:+.1f} vs 7B)", va="center",
+        ax.text(102, yi, f"{src[s]['accuracy']:.0%} acc. ({d:+.1f} vs {SIZE[TIERS[-1]]})", va="center",
                 fontsize=9, color=INK2)
     ax.set_yticks(y, [names[s] for s in order])
     ax.set_xlim(0, 100)
     ax.set_xlabel("Share of questions answered by each model (%)")
-    ax.set_title("Where questions go: easy science stays small, math escalates more")
+    ax.set_axisbelow(True)
+    ax.set_title("Where questions go under the cascade, by benchmark")
     handles = [plt.Rectangle((0, 0), 1, 1, color=TIER_RAMP[t]) for t in TIERS]
-    ax.legend(handles, [f"{t} ({p})" for t, p in zip(TIERS, ("0.5B", "1.5B", "7B"))],
-              loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=3, fontsize=9)
+    ax.legend(handles, [f"{t} ({SIZE[t]})" for t in TIERS],
+              loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=len(TIERS), fontsize=9)
     ax.grid(axis="y", visible=False)
     save(fig, "fig3_where")
 
@@ -193,6 +201,7 @@ def fig_faithfulness(m):
     ax.set_xticks(x, [lab for _, lab in routers])
     ax.set_ylim(0, 112)
     ax.set_ylabel("Decisions that changed (%)")
+    ax.set_axisbelow(True)
     ax.set_title("Faithful explanations: change the cited evidence, the decision follows")
     ax.legend(loc="upper right", fontsize=9)
     ax.grid(axis="x", visible=False)

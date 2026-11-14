@@ -1,0 +1,20 @@
+[
+  {
+    "tier": "tiny",
+    "auc_similar_questions": 0.5664029730375965,
+    "auc_raw_confidence": 0.6374158564706931,
+    "auc_confidence_evidence": 0.6093673379236559
+  },
+  {
+    "tier": "small",
+    "auc_similar_questions": 0.5945380870139549,
+    "auc_raw_confidence": 0.7046934340121118,
+    "auc_confidence_evidence": 0.6777721250094833
+  },
+  {
+    "tier": "medium",
+    "auc_similar_questions": 0.6130114057176714,
+    "auc_raw_confidence": 0.731924159383795,
+    "auc_confidence_evidence": 0.7180358465412532
+  }
+]
