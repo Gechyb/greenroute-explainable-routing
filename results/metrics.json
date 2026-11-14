@@ -3,8 +3,8 @@
     "leave_one_out": true,
     "dev_fraction": 0.3,
     "seed": 42,
-    "tuning_rule": "cheapest dev setting within 2% of always-medium accuracy",
-    "compute": "2 x params x (prompt+output tokens) of every model run, relative to always-medium"
+    "tuning_rule": "cheapest dev setting within 2% of always-largest accuracy",
+    "compute": "2 x params x (prompt+output tokens) of every model run, relative to always-largest"
   },
   "config": {
     "similarity": {
@@ -13,17 +13,17 @@
       "min_similarity": 0.0
     },
     "cascade": {
-      "stages": "small>medium",
-      "k": 50,
-      "min_accuracy": 0.8,
-      "min_correct": 40
+      "stages": "medium>large",
+      "k": 100,
+      "min_accuracy": 0.74,
+      "min_correct": 74
     },
     "threshold_cascade": {
-      "stages": "tiny>medium",
+      "stages": "tiny>large",
       "tau": 0.9999
     },
     "blackbox": {
-      "theta": 0.8
+      "theta": 0.85
     }
   },
   "test": {
@@ -34,7 +34,8 @@
       "share": {
         "tiny": 1.0,
         "small": 0.0,
-        "medium": 0.0
+        "medium": 0.0,
+        "large": 0.0
       },
       "n": 700
     },
@@ -45,62 +46,80 @@
       "share": {
         "tiny": 0.0,
         "small": 1.0,
-        "medium": 0.0
+        "medium": 0.0,
+        "large": 0.0
       },
       "n": 700
     },
     "always_medium": {
+      "accuracy": 0.7714285714285715,
+      "compute_rel": 0.47962273202905725,
+      "latency_rel": 0.7144391189057097,
+      "share": {
+        "tiny": 0.0,
+        "small": 0.0,
+        "medium": 1.0,
+        "large": 0.0
+      },
+      "n": 700
+    },
+    "always_large": {
       "accuracy": 0.8557142857142858,
       "compute_rel": 1.0,
       "latency_rel": 1.0,
       "share": {
         "tiny": 0.0,
         "small": 0.0,
-        "medium": 1.0
+        "medium": 0.0,
+        "large": 1.0
       },
       "n": 700
     },
     "oracle": {
-      "accuracy": 0.9085714285714286,
-      "compute_rel": 0.3104117007090538,
-      "latency_rel": 0.46124653683764866,
+      "accuracy": 0.9257142857142857,
+      "compute_rel": 0.26108864494048406,
+      "latency_rel": 0.4397080810127979,
       "share": {
-        "tiny": 0.5285714285714286,
+        "tiny": 0.5114285714285715,
         "small": 0.31285714285714283,
-        "medium": 0.15857142857142856
+        "medium": 0.12142857142857143,
+        "large": 0.054285714285714284
       },
       "n": 700
     },
     "similarity": {
-      "accuracy": 0.8485714285714285,
-      "compute_rel": 0.9670792425175375,
-      "latency_rel": 0.9667207473533536,
+      "accuracy": 0.83,
+      "compute_rel": 0.890484815974675,
+      "latency_rel": 0.9113300453407667,
       "share": {
         "tiny": 0.0,
         "small": 0.037142857142857144,
-        "medium": 0.9628571428571429
+        "medium": 0.15857142857142856,
+        "large": 0.8042857142857143
       },
       "n": 700
     },
     "blackbox": {
-      "accuracy": 0.8357142857142857,
-      "compute_rel": 0.8863700754384838,
-      "latency_rel": 0.900460410921257,
+      "accuracy": 0.8314285714285714,
+      "compute_rel": 0.8113570427509925,
+      "latency_rel": 0.8759904034192859,
       "share": {
         "tiny": 0.0,
-        "small": 0.13857142857142857,
-        "medium": 0.8614285714285714
+        "small": 0.04857142857142857,
+        "medium": 0.31285714285714283,
+        "large": 0.6385714285714286
       },
       "n": 700
     },
     "cascade": {
-      "accuracy": 0.83,
-      "compute_rel": 0.9929609321582509,
-      "latency_rel": 1.1962415337551555,
+      "accuracy": 0.8242857142857143,
+      "compute_rel": 0.7399487758717734,
+      "latency_rel": 0.9425847208088971,
       "share": {
         "tiny": 0.0,
-        "small": 0.26142857142857145,
-        "medium": 0.7385714285714285
+        "small": 0.0,
+        "medium": 0.7485714285714286,
+        "large": 0.25142857142857145
       },
       "n": 700
     },
@@ -111,37 +130,40 @@
       "share": {
         "tiny": 0.045714285714285714,
         "small": 0.0,
-        "medium": 0.9542857142857143
+        "medium": 0.0,
+        "large": 0.9542857142857143
       },
       "n": 700
     }
   },
   "oracle_gap_closed": {
-    "similarity": 0.047739727481328376,
-    "cascade": 0.010207638164665626
+    "similarity": 0.14821153210794016,
+    "cascade": 0.35193832433023126
   },
   "failures": {
     "similarity": {
       "categories": {
-        "correct": 594,
-        "harmful_downgrade": 5,
-        "unavoidable": 101
+        "correct": 581,
+        "harmful_downgrade": 19,
+        "unavoidable": 100
       },
       "by_reason": {
         "evidence": {
-          "n": 26,
+          "n": 137,
           "model_accuracy": {
-            "tiny": 0.5769230769230769,
-            "small": 0.7307692307692307,
-            "medium": 0.9230769230769231
+            "tiny": 0.5255474452554745,
+            "small": 0.7299270072992701,
+            "medium": 0.8175182481751825,
+            "large": 0.9197080291970803
           }
         },
         "mixed_evidence": {
-          "n": 674,
+          "n": 563,
           "model_accuracy": {
-            "tiny": 0.4317507418397626,
-            "small": 0.6498516320474778,
-            "medium": 0.8531157270029673
+            "tiny": 0.41563055062166965,
+            "small": 0.6341030195381883,
+            "medium": 0.7602131438721137,
+            "large": 0.8401420959147424
           }
         },
         "unfamiliar": {
@@ -149,63 +171,68 @@
           "model_accuracy": {
             "tiny": null,
             "small": null,
-            "medium": null
+            "medium": null,
+            "large": null
           }
         }
       },
       "safeguard": {
-        "n_fallback": 674,
-        "errors_prevented": 163,
+        "n_fallback": 563,
+        "errors_prevented": 71,
         "errors_introduced": 26,
-        "unneeded_fallbacks": 412,
-        "accuracy_with": 0.8531157270029673,
-        "accuracy_without": 0.6498516320474778
+        "unneeded_fallbacks": 402,
+        "accuracy_with": 0.8401420959147424,
+        "accuracy_without": 0.7602131438721137
       },
       "by_source": {
         "arc_challenge": {
-          "accuracy": 0.8461538461538461,
-          "compute_rel": 0.9916719680758777,
-          "latency_rel": 1.0032521283176719,
+          "accuracy": 0.8269230769230769,
+          "compute_rel": 0.8792683229095235,
+          "latency_rel": 0.8998644946534302,
           "share": {
             "tiny": 0.0,
             "small": 0.019230769230769232,
-            "medium": 0.9807692307692307
+            "medium": 0.19230769230769232,
+            "large": 0.7884615384615384
           },
           "n": 104,
           "always_largest_accuracy": 0.8653846153846154
         },
         "arc_easy": {
-          "accuracy": 0.98,
-          "compute_rel": 0.9696048632218845,
-          "latency_rel": 0.9863619571463755,
+          "accuracy": 0.97,
+          "compute_rel": 0.8112617309697602,
+          "latency_rel": 1.0199644938839176,
           "share": {
             "tiny": 0.0,
             "small": 0.05,
-            "medium": 0.95
+            "medium": 0.34,
+            "large": 0.61
           },
           "n": 100,
           "always_largest_accuracy": 0.99
         },
         "gsm8k": {
-          "accuracy": 0.8932038834951457,
-          "compute_rel": 0.9384393897715025,
-          "latency_rel": 0.9427664660234477,
+          "accuracy": 0.8640776699029126,
+          "compute_rel": 0.8352660392418592,
+          "latency_rel": 0.8605822001120388,
           "share": {
             "tiny": 0.0,
             "small": 0.07766990291262135,
-            "medium": 0.9223300970873787
+            "medium": 0.19902912621359223,
+            "large": 0.7233009708737864
           },
           "n": 206,
           "always_largest_accuracy": 0.9029126213592233
         },
         "mmlu": {
-          "accuracy": 0.7724137931034483,
-          "compute_rel": 0.9905773812616437,
-          "latency_rel": 1.004343653110757,
+          "accuracy": 0.7586206896551724,
+          "compute_rel": 0.9721032591350044,
+          "latency_rel": 1.0082229916131917,
           "share": {
             "tiny": 0.0,
             "small": 0.010344827586206896,
-            "medium": 0.9896551724137931
+            "medium": 0.05517241379310345,
+            "large": 0.9344827586206896
           },
           "n": 290,
           "always_largest_accuracy": 0.7724137931034483
@@ -213,49 +240,53 @@
       }
     },
     "cascade": {
-      "correct": 581,
-      "harmful_downgrade": 22,
-      "unavoidable": 97,
-      "cheap_beats_largest": 4,
+      "correct": 577,
+      "harmful_downgrade": 36,
+      "unavoidable": 87,
+      "cheap_beats_largest": 14,
       "by_source": {
         "arc_challenge": {
           "n": 104,
-          "accuracy": 0.8365384615384616,
+          "accuracy": 0.8461538461538461,
           "always_largest_accuracy": 0.8653846153846154,
           "share": {
             "tiny": 0.0,
-            "small": 0.125,
-            "medium": 0.875
+            "small": 0.0,
+            "medium": 0.7692307692307693,
+            "large": 0.23076923076923078
           }
         },
         "arc_easy": {
           "n": 100,
-          "accuracy": 0.99,
+          "accuracy": 0.98,
           "always_largest_accuracy": 0.99,
           "share": {
             "tiny": 0.0,
-            "small": 0.33,
-            "medium": 0.67
+            "small": 0.0,
+            "medium": 0.87,
+            "large": 0.13
           }
         },
         "gsm8k": {
           "n": 206,
-          "accuracy": 0.8640776699029126,
+          "accuracy": 0.8592233009708737,
           "always_largest_accuracy": 0.9029126213592233,
           "share": {
             "tiny": 0.0,
-            "small": 0.47572815533980584,
-            "medium": 0.5242718446601942
+            "small": 0.0,
+            "medium": 0.9174757281553398,
+            "large": 0.0825242718446602
           }
         },
         "mmlu": {
           "n": 290,
-          "accuracy": 0.7482758620689656,
+          "accuracy": 0.7379310344827587,
           "always_largest_accuracy": 0.7724137931034483,
           "share": {
             "tiny": 0.0,
-            "small": 0.13448275862068965,
-            "medium": 0.8655172413793103
+            "small": 0.0,
+            "medium": 0.5793103448275863,
+            "large": 0.4206896551724138
           }
         }
       }
@@ -269,10 +300,10 @@
       "uncited_change_rate": 0.0
     },
     "blackbox": {
-      "theta": 0.8,
+      "theta": 0.85,
       "n": 700,
-      "cited_change_rate": 0.26857142857142857,
-      "uncited_change_rate": 0.027142857142857142
+      "cited_change_rate": 0.4942857142857143,
+      "uncited_change_rate": 0.07
     },
     "cascade": {
       "n": 700,
