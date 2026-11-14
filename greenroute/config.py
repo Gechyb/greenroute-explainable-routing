@@ -1,6 +1,6 @@
 """Central configuration: the model ladder and generation settings.
 
-All three tiers come from one model family (Qwen2.5) so that differences in
+All tiers come from one model family (Qwen2.5) so that differences in
 accuracy come from size, not from training data or prompt format.
 """
 
@@ -13,7 +13,8 @@ OLLAMA_URL = "http://localhost:11434"
 MODELS = [
     {"tier": "tiny",   "name": "qwen2.5:0.5b", "params_b": 0.5},
     {"tier": "small",  "name": "qwen2.5:1.5b", "params_b": 1.5},
-    {"tier": "medium", "name": "qwen2.5:7b",   "params_b": 7.0},
+    {"tier": "medium", "name": "qwen2.5:3b",   "params_b": 3.0},
+    {"tier": "large",  "name": "qwen2.5:7b",   "params_b": 7.0},
 ]
 TIERS = [m["tier"] for m in MODELS]
 LARGEST_TIER = TIERS[-1]

@@ -43,6 +43,17 @@ class CascadeDecision:
     stages: list[Stage] = field(default_factory=list)
     explanation: str = ""
     answer: str | None = None
+    # one entry per model actually run: (tier, prompt+output tokens, seconds)
+    runs: list[tuple[str, int, float]] = field(default_factory=list)
+
+    def compute_vs_largest(self) -> float:
+        """Compute used (2 x params x tokens, summed over every model run) relative to
+        answering with only the largest model. When the largest model never ran, its
+        token count is estimated from the final answer's."""
+        params = {m["tier"]: m["params_b"] for m in MODELS}
+        used = sum(params[t] * n for t, n, _ in self.runs)
+        big = next((n for t, n, _ in self.runs if t == TIERS[BIG]), self.runs[-1][1])
+        return used / (params[TIERS[BIG]] * big)
 
 
 def accept(evidence_correct: np.ndarray, min_correct: int) -> bool:
@@ -103,11 +114,14 @@ class CascadeRouter:
             st = self.judge(t, answer_confidence(g.token_logprobs)["answer_prob"])
             st.answer = g.text
             d.stages.append(st)
+            d.runs.append((st.tier, g.prompt_tokens + g.output_tokens, g.latency_s))
             if st.accepted:
                 d.tier, d.model, d.answer = st.tier, st.model, g.text
                 break
         else:
-            d.answer = generate(MODELS[BIG]["name"], prompt, system=SYSTEM).text
+            g = generate(MODELS[BIG]["name"], prompt, system=SYSTEM)
+            d.answer = g.text
+            d.runs.append((TIERS[BIG], g.prompt_tokens + g.output_tokens, g.latency_s))
         d.explanation = explain(d)
         return d
 

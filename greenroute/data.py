@@ -38,7 +38,7 @@ def question_text(q: dict) -> str:
 def load_outcomes(ids: list[str], path: Path = LABELS) -> np.ndarray:
     """Matrix [n_questions, n_tiers]: 1.0 correct, 0.0 wrong, NaN not yet labeled.
 
-    Columns follow config.MODELS order (tiny, small, medium).
+    Columns follow config.MODELS order (smallest -> largest).
     """
     col = {m["name"]: j for j, m in enumerate(MODELS)}
     row = {qid: i for i, qid in enumerate(ids)}

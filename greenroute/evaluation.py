@@ -204,8 +204,9 @@ def failure_analysis(b: Bench, tier: np.ndarray, reason: np.ndarray, mask: np.nd
 CONFIDENCE = LABELS.parent / "confidence.jsonl"
 
 
-def load_confidence(ids: list[str], path: Path = CONFIDENCE):
-    """Answer confidence and correctness for the cheap tiers: two arrays [n, n_tiers - 1]."""
+def load_confidence(ids: list[str], path: Path = CONFIDENCE, strict: bool = True):
+    """Answer confidence and correctness for the cheap tiers: two arrays [n, n_tiers - 1].
+    strict=False returns NaN confidence for anything not labeled yet (used by the demo)."""
     row = {qid: i for i, qid in enumerate(ids)}
     col = {m["name"]: j for j, m in enumerate(MODELS[:-1])}
     conf = np.full((len(ids), len(col)), np.nan)
@@ -219,7 +220,7 @@ def load_confidence(ids: list[str], path: Path = CONFIDENCE):
             i, j = row.get(r["id"]), col.get(r["model"])
             if i is not None and j is not None:
                 conf[i, j], corr[i, j] = r["answer_prob"], r["correct"]
-    if np.isnan(conf).any():
+    if strict and np.isnan(conf).any():
         raise ValueError(f"{int(np.isnan(conf).sum())} confidence values missing; is the run finished?")
     return conf, corr
 
@@ -265,7 +266,16 @@ def cascade_score(b: Bench, final, ran, mask) -> dict:
     }
 
 
-STAGE_SETS = {"tiny>small>medium": (0, 1), "small>medium": (1,), "tiny>medium": (0,)}
+def _stage_sets() -> dict:
+    """Every cascade order: any non-empty subset of the cheap tiers, smallest first,
+    always ending at the largest model (e.g. "small>medium>large")."""
+    from itertools import combinations
+    cheap = range(len(TIERS) - 1)
+    return {">".join([TIERS[t] for t in c] + [TIERS[-1]]): c
+            for r in range(1, len(TIERS)) for c in combinations(cheap, r)}
+
+
+STAGE_SETS = _stage_sets()
 
 
 def cascade_sweep(b: Bench, conf, ks=(25, 50, 100), accs=np.round(np.arange(0.50, 1.001, 0.02), 2)):
