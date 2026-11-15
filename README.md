@@ -4,6 +4,8 @@ Many applications send every question to a large language model, even when a muc
 
 GreenRoute answers each question with the **smallest model that the evidence says will get it right**, and shows that evidence. The explanation is the decision rule itself, so it is faithful by construction. We test that claim with counterfactual experiments.
 
+📄 **Paper:** [GreenRoute: Faithful-by-Construction Explanations for Energy-Aware LLM Routing](paper/greenroute_paper.md)
+
 ## How it works
 
 Four models from one family (Qwen2.5, run locally with [Ollama](https://ollama.com)), so differences come from size alone:
