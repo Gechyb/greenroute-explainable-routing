@@ -206,7 +206,7 @@ A router can save compute and still give an explanation that is provably its rea
 - Jacovi, A., & Goldberg, Y. (2020). [Towards faithfully interpretable NLP systems: How should we define and evaluate faithfulness?](https://aclanthology.org/2020.acl-main.386/) ACL 2020.
 - Kadavath, S., et al. (2022). [Language models (mostly) know what they know](https://arxiv.org/abs/2207.05221). arXiv:2207.05221.
 - Kaplan, J., et al. (2020). [Scaling laws for neural language models](https://arxiv.org/abs/2001.08361). arXiv:2001.08361.
-- Luccioni, S., Jernite, Y., & Strubell, E. (2024). [Power hungry processing: Watts driving the cost of AI deployment?](https://arxiv.org/abs/2311.16863) ACM FAccT 2024.
+- Luccioni, A. S., Jernite, Y., & Strubell, E. (2024). [Power hungry processing: Watts driving the cost of AI deployment?](https://arxiv.org/abs/2311.16863) ACM FAccT 2024.
 - Ong, I., et al. (2024). [RouteLLM: Learning to route LLMs with preference data](https://arxiv.org/abs/2406.18665). arXiv:2406.18665.
 - Papernot, N., & McDaniel, P. (2018). [Deep k-nearest neighbors: Towards confident, interpretable and robust deep learning](https://arxiv.org/abs/1803.04765). arXiv:1803.04765.
 - Qwen Team (2024). [Qwen2.5 technical report](https://arxiv.org/abs/2412.15115). arXiv:2412.15115.
