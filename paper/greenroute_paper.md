@@ -10,7 +10,7 @@ Sending every query to the largest available language model wastes energy, yet r
 
 ## 1 Introduction
 
-Most questions sent to a large language model do not need it. In our data, a perfect router that always picked the cheapest model able to answer correctly would reach 92.6% accuracy while using only 26% of the compute of always calling a 7B model. Inference already dominates the energy cost of deployed models ([Luccioni et al., 2024](https://arxiv.org/abs/2311.16863)), so routing easy questions to smaller models is one of the most direct levers a practitioner has.
+Most questions sent to a large language model do not need it. In our data, an efficient router that always picked the cheapest model able to answer correctly would reach 92.6% accuracy while using only 26% of the compute of always calling a 7B model. Inference already dominates the energy cost of deployed models ([Luccioni et al., 2024](https://arxiv.org/abs/2311.16863)), so routing easy questions to smaller models is one of the most direct levers a practitioner has.
 
 The obstacle is trust, not engineering. A router that silently sends a medical or legal question to a weaker model creates a risk that someone must sign off on. Learned routers such as RouteLLM ([Ong et al., 2024](https://arxiv.org/abs/2406.18665)) and Hybrid LLM ([Ding et al., 2024](https://arxiv.org/abs/2404.14618)) are black boxes: they output a decision but not a reason. Bolting a post-hoc explanation onto such a router is easy, but the explanation may not reflect what produced the decision, which is the faithfulness problem ([Jacovi & Goldberg, 2020](https://aclanthology.org/2020.acl-main.386/)).
 
